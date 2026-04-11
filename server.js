@@ -15,12 +15,16 @@ filter.addWords(
   'chink', 'spic', 'wetback', 'cracker', 'gook', 'kyke'
 );
 
+// ── Whitelist to prevent false positives ──
+const WHITELIST = new Set([
+  'good', 'god', 'hell', 'damn', 'crap', 'darn', 'heck'
+]);
+
 const ALLOWED_COLORS = [
   '#4fc3f7', '#ffffff', '#a78bfa', '#34d399',
   '#f87171', '#fbbf24', '#fb923c', '#f472b6',
 ];
 
-// Future-proof version
 const ALLOWED_HATS = new Set([
   'character1', 'character2', 'character3', 'character4', 'character5',
   'character6', 'character7', 'character8', 'character9', 'character10',
@@ -43,9 +47,17 @@ function normalizeLeet(text) {
 
 function isBad(text) {
   if (!text || typeof text !== 'string') return false;
+
   const normalized = normalizeLeet(text);
   const stripped = text.toLowerCase().replace(/[^a-z]/g, '');
   const strippedCollapsed = stripped.replace(/(.)\1+/g, '$1');
+
+  // First check whitelist (prevents false positives like "good")
+  const lower = text.toLowerCase();
+  if (WHITELIST.has(lower) || WHITELIST.has(normalized) || WHITELIST.has(stripped) || WHITELIST.has(strippedCollapsed)) {
+    return false;
+  }
+
   try {
     return (
       filter.isProfane(text) ||
@@ -75,9 +87,9 @@ io.on("connection", (socket) => {
     approved: false,
     color: '#4fc3f7',
     hat: null,
-    credits: 0,                    // ← Added for player info
-    playTimeMs: 0,                 // ← Added for player info
-    ownedCharacters: ['character1', 'character2'], // ← Added for player info
+    credits: 0,
+    playTimeMs: 0,
+    ownedCharacters: ['character1', 'character2'],
     lastSeen: Date.now()
   };
 
@@ -106,10 +118,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  // NEW: Receive player info (credits, playtime, owned characters)
   socket.on("updatePlayerInfo", (data) => {
     if (!players[socket.id] || !players[socket.id].approved) return;
-
     if (Number.isFinite(data.credits)) {
       players[socket.id].credits = Math.max(0, Math.floor(data.credits));
     }
