@@ -4,6 +4,17 @@ const { Server } = require("socket.io");
 const Filter = require("bad-words");
 
 const app = express();
+app.use(express.json()); // ✅ added
+
+// ✅ added health + root endpoints
+app.get("/", (req, res) => {
+  res.status(200).send("OK");
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }
@@ -17,20 +28,19 @@ filter.addWords(
 );
 
 const ALLOWED_COLORS = [
-  '#4fc3f7', // blue (default)
-  '#ffffff', // white
-  '#a78bfa', // purple
-  '#34d399', // green
-  '#f87171', // red
-  '#fbbf24', // yellow
-  '#fb923c', // orange
-  '#f472b6', // pink
+  '#4fc3f7',
+  '#ffffff',
+  '#a78bfa',
+  '#34d399',
+  '#f87171',
+  '#fbbf24',
+  '#fb923c',
+  '#f472b6',
 ];
 
 function normalizeLeet(text) {
   return text
     .toLowerCase()
-    // Leet substitutions
     .replace(/0/g, 'o')
     .replace(/1/g, 'i')
     .replace(/3/g, 'e')
@@ -50,18 +60,14 @@ function normalizeLeet(text) {
     .replace(/></, 'x')
     .replace(/vv/g, 'w')
     .replace(/\/\//g, 'n')
-    // Strip spaces between letters used to dodge filter (f u c k -> fuck)
     .replace(/(\b\w\s){2,}/g, (m) => m.replace(/\s/g, ''))
-    // Collapse ALL repeated characters: fuuuck -> fuk, fuuck -> fuk
     .replace(/(.)\1+/g, '$1');
 }
 
 function isBad(text) {
   if (!text || typeof text !== 'string') return false;
   const normalized = normalizeLeet(text);
-  // Also check with all spaces/symbols stripped
   const stripped = text.toLowerCase().replace(/[^a-z]/g, '');
-  // Also check stripped+collapsed
   const strippedCollapsed = stripped.replace(/(.)\1+/g, '$1');
   try {
     return (
