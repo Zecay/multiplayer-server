@@ -10,7 +10,6 @@ const io = new Server(server, {
 });
 
 const filter = new Filter();
-
 filter.addWords(
   'nigga', 'fag', 'faggot', 'retard', 'kys', 'tranny',
   'chink', 'spic', 'wetback', 'cracker', 'gook', 'kyke'
@@ -76,6 +75,9 @@ io.on("connection", (socket) => {
     approved: false,
     color: '#4fc3f7',
     hat: null,
+    credits: 0,                    // ← Added for player info
+    playTimeMs: 0,                 // ← Added for player info
+    ownedCharacters: ['character1', 'character2'], // ← Added for player info
     lastSeen: Date.now()
   };
 
@@ -101,6 +103,23 @@ io.on("connection", (socket) => {
     if (!players[socket.id] || !players[socket.id].approved) return;
     if (hat === null || ALLOWED_HATS.has(hat)) {
       players[socket.id].hat = hat;
+    }
+  });
+
+  // NEW: Receive player info (credits, playtime, owned characters)
+  socket.on("updatePlayerInfo", (data) => {
+    if (!players[socket.id] || !players[socket.id].approved) return;
+
+    if (Number.isFinite(data.credits)) {
+      players[socket.id].credits = Math.max(0, Math.floor(data.credits));
+    }
+    if (Number.isFinite(data.playTimeMs)) {
+      players[socket.id].playTimeMs = Math.max(0, Math.floor(data.playTimeMs));
+    }
+    if (Array.isArray(data.ownedCharacters)) {
+      players[socket.id].ownedCharacters = [...new Set(
+        data.ownedCharacters.filter(v => typeof v === 'string' && v)
+      )];
     }
   });
 
