@@ -21,7 +21,12 @@ const ALLOWED_COLORS = [
   '#f87171', '#fbbf24', '#fb923c', '#f472b6',
 ];
 
-const ALLOWED_HATS = ['hat1', 'hat2', 'hat3', 'hat4', 'hat5', null];
+// Future-proof version
+const ALLOWED_HATS = new Set([
+  'character1', 'character2', 'character3', 'character4', 'character5',
+  'character6', 'character7', 'character8', 'character9', 'character10',
+  null
+]);
 
 function normalizeLeet(text) {
   return text
@@ -94,7 +99,7 @@ io.on("connection", (socket) => {
 
   socket.on("setHat", (hat) => {
     if (!players[socket.id] || !players[socket.id].approved) return;
-    if (ALLOWED_HATS.includes(hat)) {
+    if (hat === null || ALLOWED_HATS.has(hat)) {
       players[socket.id].hat = hat;
     }
   });
