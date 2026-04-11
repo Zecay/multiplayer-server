@@ -13,7 +13,7 @@ const players = {};
 io.on("connection", (socket) => {
   console.log("Player connected:", socket.id);
 
-  players[socket.id] = { x: 0, y: 0, lastSeen: Date.now() };
+  players[socket.id] = { x: 0, y: 0, username: 'Player', lastSeen: Date.now() };
 
   socket.on("move", (data) => {
     if (players[socket.id]) {
@@ -21,6 +21,24 @@ io.on("connection", (socket) => {
       players[socket.id].y = data.y;
       players[socket.id].lastSeen = Date.now();
     }
+  });
+
+  socket.on("setUsername", (name) => {
+    if (players[socket.id]) {
+      const clean = String(name).trim().slice(0, 25);
+      players[socket.id].username = clean;
+    }
+  });
+
+  socket.on("chat", (text) => {
+    if (!players[socket.id]) return;
+    const clean = String(text).trim().slice(0, 140);
+    if (!clean) return;
+    io.emit("chat", {
+      id: socket.id,
+      username: players[socket.id].username,
+      text: clean,
+    });
   });
 
   socket.on("heartbeat", () => {
@@ -35,7 +53,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// Remove ghost players who haven't sent anything in 15 seconds
 setInterval(() => {
   const now = Date.now();
   for (const id in players) {
@@ -46,7 +63,6 @@ setInterval(() => {
   }
 }, 2000);
 
-// Broadcast full state to all clients every 50ms
 setInterval(() => {
   io.emit("state", players);
 }, 50);
