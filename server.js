@@ -16,9 +16,21 @@ filter.addWords(
   'chink', 'spic', 'wetback', 'cracker', 'gook', 'kyke'
 );
 
+const ALLOWED_COLORS = [
+  '#4fc3f7', // blue (default)
+  '#ffffff', // white
+  '#a78bfa', // purple
+  '#34d399', // green
+  '#f87171', // red
+  '#fbbf24', // yellow
+  '#fb923c', // orange
+  '#f472b6', // pink
+];
+
 function normalizeLeet(text) {
   return text
     .toLowerCase()
+    // Leet substitutions
     .replace(/0/g, 'o')
     .replace(/1/g, 'i')
     .replace(/3/g, 'e')
@@ -35,14 +47,13 @@ function normalizeLeet(text) {
     .replace(/\|/g, 'i')
     .replace(/\(/g, 'c')
     .replace(/\)/g, 'o')
-    .replace(/\[]/g, 'c')
     .replace(/></, 'x')
     .replace(/vv/g, 'w')
     .replace(/\/\//g, 'n')
-    // Strip spaces between letters used to dodge filter (f u c k)
+    // Strip spaces between letters used to dodge filter (f u c k -> fuck)
     .replace(/(\b\w\s){2,}/g, (m) => m.replace(/\s/g, ''))
-    // Strip repeated characters fuuuuck -> fuck
-    .replace(/(.)\1{2,}/g, '$1$1');
+    // Collapse ALL repeated characters: fuuuck -> fuk, fuuck -> fuk
+    .replace(/(.)\1+/g, '$1');
 }
 
 function isBad(text) {
@@ -50,11 +61,14 @@ function isBad(text) {
   const normalized = normalizeLeet(text);
   // Also check with all spaces/symbols stripped
   const stripped = text.toLowerCase().replace(/[^a-z]/g, '');
+  // Also check stripped+collapsed
+  const strippedCollapsed = stripped.replace(/(.)\1+/g, '$1');
   try {
     return (
       filter.isProfane(text) ||
       filter.isProfane(normalized) ||
-      filter.isProfane(stripped)
+      filter.isProfane(stripped) ||
+      filter.isProfane(strippedCollapsed)
     );
   } catch {
     return false;
@@ -74,9 +88,14 @@ const players = {};
 io.on("connection", (socket) => {
   console.log("Player connected:", socket.id);
 
-  players[socket.id] = { x: 0, y: 0, username: null, approved: false, lastSeen: Date.now() };
+  players[socket.id] = {
+    x: 0, y: 0,
+    username: null,
+    approved: false,
+    color: '#4fc3f7',
+    lastSeen: Date.now()
+  };
 
-  // Client asks server to validate username before entering game
   socket.on("requestUsername", (name) => {
     const result = isValidUsername(String(name));
     if (result.ok) {
@@ -85,6 +104,13 @@ io.on("connection", (socket) => {
       socket.emit("usernameApproved", players[socket.id].username);
     } else {
       socket.emit("usernameRejected", result.reason);
+    }
+  });
+
+  socket.on("setColor", (color) => {
+    if (!players[socket.id] || !players[socket.id].approved) return;
+    if (ALLOWED_COLORS.includes(color)) {
+      players[socket.id].color = color;
     }
   });
 
@@ -133,7 +159,6 @@ setInterval(() => {
 }, 2000);
 
 setInterval(() => {
-  // Only broadcast approved players
   const approved = {};
   for (const [id, p] of Object.entries(players)) {
     if (p.approved) approved[id] = p;
