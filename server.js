@@ -17,6 +17,9 @@ io.on("connection", (socket) => {
 
   players[socket.id] = { x: 0, y: 0 };
 
+  socket.emit("init", { id: socket.id, players });
+  socket.broadcast.emit("playerJoined", { id: socket.id, x: 0, y: 0 });
+
   socket.on("move", (data) => {
     if (players[socket.id]) {
       players[socket.id].x = data.x;
@@ -27,6 +30,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     delete players[socket.id];
     console.log("Player disconnected:", socket.id);
+    io.emit("playerLeft", socket.id);
   });
 });
 
@@ -34,6 +38,7 @@ setInterval(() => {
   io.emit("state", players);
 }, 50);
 
-server.listen(3000, () => {
-  console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
