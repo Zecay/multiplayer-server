@@ -4,17 +4,6 @@ const { Server } = require("socket.io");
 const Filter = require("bad-words");
 
 const app = express();
-app.use(express.json()); // ✅ added
-
-// ✅ added health + root endpoints
-app.get("/", (req, res) => {
-  res.status(200).send("OK");
-});
-
-app.get("/health", (req, res) => {
-  res.status(200).send("OK");
-});
-
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }
@@ -28,37 +17,21 @@ filter.addWords(
 );
 
 const ALLOWED_COLORS = [
-  '#4fc3f7',
-  '#ffffff',
-  '#a78bfa',
-  '#34d399',
-  '#f87171',
-  '#fbbf24',
-  '#fb923c',
-  '#f472b6',
+  '#4fc3f7', '#ffffff', '#a78bfa', '#34d399',
+  '#f87171', '#fbbf24', '#fb923c', '#f472b6',
 ];
+
+const ALLOWED_HATS = ['hat1', 'hat2', 'hat3', 'hat4', 'hat5', null];
 
 function normalizeLeet(text) {
   return text
     .toLowerCase()
-    .replace(/0/g, 'o')
-    .replace(/1/g, 'i')
-    .replace(/3/g, 'e')
-    .replace(/4/g, 'a')
-    .replace(/5/g, 's')
-    .replace(/6/g, 'g')
-    .replace(/7/g, 't')
-    .replace(/8/g, 'b')
-    .replace(/9/g, 'g')
-    .replace(/@/g, 'a')
-    .replace(/\$/g, 's')
-    .replace(/!/g, 'i')
-    .replace(/\+/g, 't')
-    .replace(/\|/g, 'i')
-    .replace(/\(/g, 'c')
-    .replace(/\)/g, 'o')
-    .replace(/></, 'x')
-    .replace(/vv/g, 'w')
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+    .replace(/4/g, 'a').replace(/5/g, 's').replace(/6/g, 'g')
+    .replace(/7/g, 't').replace(/8/g, 'b').replace(/9/g, 'g')
+    .replace(/@/g, 'a').replace(/\$/g, 's').replace(/!/g, 'i')
+    .replace(/\+/g, 't').replace(/\|/g, 'i').replace(/\(/g, 'c')
+    .replace(/\)/g, 'o').replace(/></, 'x').replace(/vv/g, 'w')
     .replace(/\/\//g, 'n')
     .replace(/(\b\w\s){2,}/g, (m) => m.replace(/\s/g, ''))
     .replace(/(.)\1+/g, '$1');
@@ -76,9 +49,7 @@ function isBad(text) {
       filter.isProfane(stripped) ||
       filter.isProfane(strippedCollapsed)
     );
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function isValidUsername(name) {
@@ -99,6 +70,7 @@ io.on("connection", (socket) => {
     username: null,
     approved: false,
     color: '#4fc3f7',
+    hat: null,
     lastSeen: Date.now()
   };
 
@@ -117,6 +89,13 @@ io.on("connection", (socket) => {
     if (!players[socket.id] || !players[socket.id].approved) return;
     if (ALLOWED_COLORS.includes(color)) {
       players[socket.id].color = color;
+    }
+  });
+
+  socket.on("setHat", (hat) => {
+    if (!players[socket.id] || !players[socket.id].approved) return;
+    if (ALLOWED_HATS.includes(hat)) {
+      players[socket.id].hat = hat;
     }
   });
 
@@ -143,9 +122,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("heartbeat", () => {
-    if (players[socket.id]) {
-      players[socket.id].lastSeen = Date.now();
-    }
+    if (players[socket.id]) players[socket.id].lastSeen = Date.now();
   });
 
   socket.on("disconnect", () => {
