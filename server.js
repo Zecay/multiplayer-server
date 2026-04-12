@@ -12,7 +12,8 @@ const io = new Server(server, {
 const filter = new Filter();
 filter.addWords(
   'nigga', 'fag', 'faggot', 'retard', 'kys', 'tranny',
-  'chink', 'spic', 'wetback', 'cracker', 'gook', 'kyke'
+  'chink', 'spic', 'wetback', 'cracker', 'gook', 'kyke',
+  'anus', 'sex'
 );
 
 // ── Whitelist to prevent false positives ──
