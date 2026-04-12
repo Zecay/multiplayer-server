@@ -16,7 +16,6 @@ filter.addWords(
   'anus', 'sex'
 );
 
-// ── Whitelist to prevent false positives ──
 const WHITELIST = new Set([
   'good', 'god', 'hell', 'damn', 'crap', 'darn', 'heck'
 ]);
@@ -48,17 +47,13 @@ function normalizeLeet(text) {
 
 function isBad(text) {
   if (!text || typeof text !== 'string') return false;
-
   const normalized = normalizeLeet(text);
   const stripped = text.toLowerCase().replace(/[^a-z]/g, '');
   const strippedCollapsed = stripped.replace(/(.)\1+/g, '$1');
-
-  // First check whitelist (prevents false positives like "good")
   const lower = text.toLowerCase();
   if (WHITELIST.has(lower) || WHITELIST.has(normalized) || WHITELIST.has(stripped) || WHITELIST.has(strippedCollapsed)) {
     return false;
   }
-
   try {
     return (
       filter.isProfane(text) ||
@@ -156,26 +151,56 @@ io.on("connection", (socket) => {
     });
   });
 
+  // ── Private messaging: NO word filter, just length cap ──
+  socket.on("privateMessage", (data) => {
+    if (!players[socket.id] || !players[socket.id].approved) return;
+    const { toId, text } = data || {};
+    if (!toId || typeof toId !== 'string') return;
+    const target = players[toId];
+    if (!target || !target.approved) {
+      socket.emit('pmError', { toId, reason: 'That player is no longer online.' });
+      return;
+    }
+    const clean = String(text || '').trim().slice(0, 300);
+    if (!clean) return;
+    const payload = {
+      fromId: socket.id,
+      fromUsername: players[socket.id].username,
+      toId,
+      text: clean,
+      ts: Date.now(),
+    };
+    // Send to recipient
+    io.to(toId).emit('privateMessage', payload);
+    // Echo back to sender so they see their own message in the DM thread
+    socket.emit('privateMessage', payload);
+  });
+
   socket.on("heartbeat", () => {
     if (players[socket.id]) players[socket.id].lastSeen = Date.now();
   });
 
   socket.on("disconnect", () => {
+    // Notify anyone who had an open DM with this player
+    io.emit("playerOffline", { id: socket.id });
     delete players[socket.id];
     console.log("Player disconnected:", socket.id);
   });
 });
 
+// Ghost-player cleanup
 setInterval(() => {
   const now = Date.now();
   for (const id in players) {
     if (now - players[id].lastSeen > 15000) {
+      io.emit("playerOffline", { id });
       delete players[id];
       console.log("Removed ghost player:", id);
     }
   }
 }, 2000);
 
+// World state broadcast
 setInterval(() => {
   const approved = {};
   for (const [id, p] of Object.entries(players)) {
