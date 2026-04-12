@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const Filter = require("bad-words");
 
 const app = express();
+const fs = require("fs");
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }
@@ -210,6 +211,11 @@ setInterval(() => {
 }, 50);
 
 const PORT = process.env.PORT || 3000;
+
+app.get("/map", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.sendFile(__dirname + "/MAP.json");
+});
 server.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
