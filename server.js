@@ -244,4 +244,112 @@ app.get("/map", (req, res) => {
 
 server.listen(PORT, () => {
   console.log("Server running on port " + PORT);
+});const PORT = process.env.PORT || 3000;
+
+// ── HTTP SYNC ENDPOINT (for Web Worker polling from Remix sandbox) ──
+// The Web Worker calls POST /api/sync every ~80ms with player data,
+// and receives all other players + recent chat messages back.
+
+const chatBuffer = [];
+const MAX_CHAT_BUFFER = 50;
+const pmBuffers = {};
+const MAX_PM_BUFFER = 30;
+
+// Ghost cleanup for HTTP players
+setInterval(() => {
+  const now = Date.now();
+  for (const id in players) {
+    if (now - players[id].lastSeen > 15000) {
+      delete players[id];
+      delete pmBuffers[id];
+      console.log("Removed ghost HTTP player:", id);
+    }
+  }
+}, 2000);
+
+app.post("/api/sync", (req, res) => {
+  const { id, username, x, y, hat, credits, playTimeMs, ownedCharacters, chat, pmTo, pmText } = req.body;
+  if (!id || typeof id !== 'string') return res.json({ ok: false, error: 'Missing id' });
+
+  if (!players[id]) {
+    players[id] = {
+      x: 0, y: 0, username: null, approved: false,
+      color: '#4fc3f7', hat: null, credits: 0, playTimeMs: 0,
+      ownedCharacters: ['character1', 'character2'], lastSeen: Date.now()
+    };
+  }
+  const p = players[id];
+  p.lastSeen = Date.now();
+
+  if (typeof x === 'number' && isFinite(x)) p.x = Math.max(-5000, Math.min(5000, x));
+  if (typeof y === 'number' && isFinite(y)) p.y = Math.max(-5000, Math.min(5000, y));
+
+  if (typeof username === 'string' && username.trim()) {
+    const result = isValidUsername(username);
+    if (result.ok) { p.username = username.trim(); p.approved = true; }
+  }
+
+  if (hat === null || ALLOWED_HATS.has(hat)) p.hat = hat;
+  if (Number.isFinite(credits)) p.credits = Math.max(0, Math.floor(credits));
+  if (Number.isFinite(playTimeMs)) p.playTimeMs = Math.max(0, Math.floor(playTimeMs));
+  if (Array.isArray(ownedCharacters)) {
+    p.ownedCharacters = [...new Set(ownedCharacters.filter(v => typeof v === 'string' && v))];
+  }
+
+  let chatBlocked = false;
+  if (typeof chat === 'string' && chat.trim() && p.approved) {
+    const clean = chat.trim().slice(0, 140);
+    if (clean) {
+      if (isBad(clean)) { chatBlocked = true; }
+      else {
+        chatBuffer.push({ id, username: p.username || 'Player', text: clean, ts: Date.now() });
+        if (chatBuffer.length > MAX_CHAT_BUFFER) chatBuffer.shift();
+      }
+    }
+  }
+
+  let pmError = null;
+  if (pmTo && typeof pmTo === 'string' && typeof pmText === 'string' && pmText.trim() && p.approved) {
+    const clean = pmText.trim().slice(0, 300);
+    if (clean) {
+      const target = players[pmTo];
+      if (!target || !target.approved) { pmError = 'That player is no longer online.'; }
+      else {
+        if (!pmBuffers[pmTo]) pmBuffers[pmTo] = [];
+        pmBuffers[pmTo].push({ from: id, fromUsername: p.username || 'Player', text: clean, ts: Date.now() });
+        if (pmBuffers[pmTo].length > MAX_PM_BUFFER) pmBuffers[pmTo].shift();
+        if (!pmBuffers[id]) pmBuffers[id] = [];
+        pmBuffers[id].push({ from: id, fromUsername: p.username || 'Player', text: clean, ts: Date.now(), isSelf: true });
+        if (pmBuffers[id].length > MAX_PM_BUFFER) pmBuffers[id].shift();
+      }
+    }
+  }
+
+  const otherPlayers = {};
+  for (const [pid, pdata] of Object.entries(players)) {
+    if (pid !== id && pdata.approved) {
+      otherPlayers[pid] = {
+        username: pdata.username, x: pdata.x, y: pdata.y,
+        hat: pdata.hat, credits: pdata.credits, playTimeMs: pdata.playTimeMs,
+        ownedCharacters: pdata.ownedCharacters,
+      };
+    }
+  }
+
+  const chatCutoff = Date.now() - 3000;
+  const recentChat = chatBuffer.filter(m => m.ts > chatCutoff && m.id !== id);
+  const myPMs = pmBuffers[id] ? pmBuffers[id].splice(0) : [];
+  if (pmBuffers[id] && !pmBuffers[id].length) delete pmBuffers[id];
+
+  res.json({
+    ok: true, myId: id,
+    usernameApproved: p.approved,
+    usernameRejected: !p.approved && username !== undefined ? 'That username is not allowed.' : null,
+    chatBlocked, pmError,
+    players: otherPlayers,
+    chat: recentChat,
+    pms: myPMs,
+  });
 });
+
+
