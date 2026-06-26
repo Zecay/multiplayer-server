@@ -132,8 +132,13 @@ io.on("connection", (socket) => {
 
   socket.on("move", (data) => {
     if (!players[socket.id] || !players[socket.id].approved) return;
-    players[socket.id].x = data.x;
-    players[socket.id].y = data.y;
+    // FIX: Validate incoming position data to prevent cheating/crashes
+    if (typeof data.x !== 'number' || typeof data.y !== 'number') return;
+    if (!isFinite(data.x) || !isFinite(data.y)) return;
+    // Clamp positions to reasonable world bounds
+    const MAX_POS = 5000;
+    players[socket.id].x = Math.max(-MAX_POS, Math.min(MAX_POS, data.x));
+    players[socket.id].y = Math.max(-MAX_POS, Math.min(MAX_POS, data.y));
     players[socket.id].lastSeen = Date.now();
   });
 
@@ -212,10 +217,18 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 3000;
 
+// FIX: Also serve the map from the server so the client can fetch from the same origin
 app.get("/map", (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.sendFile(__dirname + "/MAP.json");
+  // Try to serve MAP.json from the same directory
+  const mapPath = __dirname + "/MAP.json";
+  if (fs.existsSync(mapPath)) {
+    res.sendFile(mapPath);
+  } else {
+    res.status(404).json({ error: "MAP.json not found on server" });
+  }
 });
+
 server.listen(PORT, () => {
   console.log("Server running on port " + PORT);
 });
