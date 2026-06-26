@@ -6,14 +6,17 @@ const Filter = require("bad-words");
 const app = express();
 const fs = require("fs");
 
-// FIX: Add CORS headers so the web worker can fetch /map from a different origin
+// CORS headers — Web Workers fetch from Remix sandbox
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
 });
+
+// Parse JSON bodies for POST /api/sync
+app.use(express.json({ limit: '100kb' }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
